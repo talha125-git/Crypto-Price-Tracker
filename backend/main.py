@@ -1,18 +1,15 @@
 # -------------------- Imports --------------------
 import os
 import requests
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import MongoClient
 from pydantic import BaseModel, EmailStr
 from dotenv import load_dotenv
-import certifi
 
-# Load environment variables from .env file
 load_dotenv()
 
-# -------------------- CORS Configuration --------------------
-# Read allowed origins from environment variable, fallback to localhost for dev
+# -------------------- CORS --------------------
 FRONTEND_URL = os.getenv("FRONTEND_URL", "")
 
 origins = [
@@ -24,41 +21,22 @@ origins = [
     "http://127.0.0.1:5175",
 ]
 
-# Add production frontend URL if set
 if FRONTEND_URL:
     origins.append(FRONTEND_URL)
 
-# -------------------- MongoDB Setup --------------------
+# -------------------- MongoDB --------------------
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
 DB_NAME = os.getenv("DB_NAME", "crypto_tracker")
 
-client = AsyncIOMotorClient(
-    MONGO_URL,
-    serverSelectionTimeoutMS=5000,
-    tls=True,
-    tlsAllowInvalidCertificates=True
-)
+client = MongoClient(MONGO_URL, serverSelectionTimeoutMS=5000)
 db = client[DB_NAME]
 
 users_collection = db["users"]
 favorites_collection = db["favorites"]
 watchlist_collection = db["watchlist"]
 
-# -------------------- App Lifespan --------------------
-from contextlib import asynccontextmanager
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    try:
-        await client.admin.command('ping')
-        print("Connected to MongoDB!")
-    except Exception as e:
-        print(f"CRITICAL: Could not connect to MongoDB: {e}")
-    yield
-    client.close()
-
-# -------------------- FastAPI App --------------------
-app = FastAPI(lifespan=lifespan)
+# -------------------- App --------------------
+app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
@@ -82,7 +60,7 @@ def verify_password(password: str, hashed: str) -> bool:
     except Exception:
         return False
 
-# -------------------- Pydantic Models --------------------
+# -------------------- Models --------------------
 class UserRegister(BaseModel):
     username: str
     email: EmailStr
@@ -102,11 +80,11 @@ class WatchlistItem(BaseModel):
     coin_id: str
     coin_data: dict
 
-# -------------------- Authentication Routes --------------------
+# -------------------- Auth Routes --------------------
 @app.post("/register")
-async def register(user: UserRegister):
+def register(user: UserRegister):
     try:
-        existing_user = await users_collection.find_one({"email": user.email})
+        existing_user = users_collection.find_one({"email": user.email})
         if existing_user:
             raise HTTPException(status_code=400, detail="Email already registered")
         hashed_password = hash_password(user.password)
@@ -115,17 +93,16 @@ async def register(user: UserRegister):
             "email": user.email,
             "password": hashed_password
         }
-        result = await users_collection.insert_one(new_user)
+        result = users_collection.insert_one(new_user)
         return {"message": "User registered successfully", "id": str(result.inserted_id)}
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error in /register: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/login")
-async def login(user: UserLogin):
-    db_user = await users_collection.find_one({"email": user.email})
+def login(user: UserLogin):
+    db_user = users_collection.find_one({"email": user.email})
     if not db_user or not verify_password(user.password, db_user["password"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     return {
@@ -134,79 +111,69 @@ async def login(user: UserLogin):
         "email": db_user["email"]
     }
 
-# -------------------- Favorites Routes --------------------
+# -------------------- Favorites --------------------
 @app.get("/favorites/{user_id}")
-async def get_favorites(user_id: str):
+def get_favorites(user_id: str):
     try:
-        favorites = await favorites_collection.find({"user_id": user_id}).to_list(length=100)
+        favorites = list(favorites_collection.find({"user_id": user_id}))
         for fav in favorites:
             fav["_id"] = str(fav["_id"])
         return favorites
-    except Exception as e:
-        print(f"Database error in get_favorites for user {user_id}: {e}")
+    except Exception:
         return []
 
 @app.post("/favorites")
-async def add_favorite(item: FavoriteItem):
+def add_favorite(item: FavoriteItem):
     try:
-        await favorites_collection.update_one(
+        favorites_collection.update_one(
             {"user_id": item.user_id, "coin_id": item.coin_id},
             {"$set": {"coin_data": item.coin_data}},
             upsert=True
         )
         return {"message": "Favorite updated"}
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @app.delete("/favorites/{user_id}/{coin_id}")
-async def remove_favorite(user_id: str, coin_id: str):
+def remove_favorite(user_id: str, coin_id: str):
     try:
-        await favorites_collection.delete_one({"user_id": user_id, "coin_id": coin_id})
+        favorites_collection.delete_one({"user_id": user_id, "coin_id": coin_id})
         return {"message": "Favorite removed"}
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-# -------------------- Watchlist Routes --------------------
+# -------------------- Watchlist --------------------
 @app.get("/watchlist/{user_id}")
-async def get_watchlist(user_id: str):
+def get_watchlist(user_id: str):
     try:
-        watchlist = await watchlist_collection.find({"user_id": user_id}).to_list(length=100)
+        watchlist = list(watchlist_collection.find({"user_id": user_id}))
         for item in watchlist:
             item["_id"] = str(item["_id"])
         return watchlist
-    except Exception as e:
-        print(f"Database error in get_watchlist for user {user_id}: {e}")
+    except Exception:
         return []
 
 @app.post("/watchlist")
-async def add_watchlist(item: WatchlistItem):
+def add_watchlist(item: WatchlistItem):
     try:
-        await watchlist_collection.update_one(
+        watchlist_collection.update_one(
             {"user_id": item.user_id, "coin_id": item.coin_id},
             {"$set": {"coin_data": item.coin_data}},
             upsert=True
         )
         return {"message": "Watchlist updated"}
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 @app.delete("/watchlist/{user_id}/{coin_id}")
-async def remove_watchlist(user_id: str, coin_id: str):
+def remove_watchlist(user_id: str, coin_id: str):
     try:
-        await watchlist_collection.delete_one({"user_id": user_id, "coin_id": coin_id})
+        watchlist_collection.delete_one({"user_id": user_id, "coin_id": coin_id})
         return {"message": "Watchlist removed"}
-    except HTTPException:
-        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-# -------------------- External API Routes --------------------
+# -------------------- External API --------------------
 @app.get("/prices")
 def get_prices():
     url = "https://api.coingecko.com/api/v3/simple/price"
@@ -236,11 +203,9 @@ def get_coins():
     try:
         response = requests.get(url, params=params, headers=headers, timeout=10)
         if response.status_code != 200:
-            print(f"CoinGecko API Error: {response.status_code}, returning mock data.")
             return get_mock_coins()
         return response.json()
-    except Exception as e:
-        print(f"Request Error: {e}, returning mock data.")
+    except Exception:
         return get_mock_coins()
 
 def get_mock_coins():

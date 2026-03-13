@@ -1,8 +1,7 @@
 fastapi
 uvicorn
-requests
-motor
-pydantic[email]
-passlib[bcrypt]
+pymongo[srv]
 python-dotenv
-certifi
+pydantic[email]
+bcrypt
+requests
