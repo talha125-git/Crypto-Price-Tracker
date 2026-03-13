@@ -35,7 +35,8 @@ DB_NAME = os.getenv("DB_NAME", "crypto_tracker")
 client = AsyncIOMotorClient(
     MONGO_URL,
     serverSelectionTimeoutMS=5000,
-    tlsCAFile=certifi.where()
+    tls=True,
+    tlsAllowInvalidCertificates=True
 )
 db = client[DB_NAME]
 
