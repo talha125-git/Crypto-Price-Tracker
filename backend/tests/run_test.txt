@@ -1,0 +1,7 @@
+pytest tests/test_auth.py
+pytest tests/test_favorites.py
+pytest tests/test_watchlist.py
+
+pytest tests/test_api.py
+run all at once
+pytest

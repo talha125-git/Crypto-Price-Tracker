@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+requests
+motor
+pydantic[email]
+passlib[bcrypt]
+python-dotenv
+certifi
