@@ -1,7 +1,9 @@
 const PriceCard = ({ data, onRemove }) => {
   const { name, symbol, image, current_price, price_change_percentage_24h, quantity, totalValue } = data;
 
-  const isPositive = price_change_percentage_24h >= 0;
+  // ✅ Fix: handle null/undefined price_change_percentage_24h
+  const change = price_change_percentage_24h ?? 0;
+  const isPositive = change >= 0;
 
   return (
     <div className="relative overflow-hidden bg-gray-900 border border-gray-800 p-6 rounded-3xl shadow-xl transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:border-gray-700 group">
@@ -19,7 +21,7 @@ const PriceCard = ({ data, onRemove }) => {
           </div>
         </div>
         <div className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold ${isPositive ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-          {isPositive ? '▲' : '▼'} {Math.abs(price_change_percentage_24h).toFixed(2)}%
+          {isPositive ? '▲' : '▼'} {Math.abs(change).toFixed(2)}%
         </div>
       </div>
 
