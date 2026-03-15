@@ -16,12 +16,9 @@ const Home = () => {
 
     useEffect(() => {
         const load = async () => {
-            console.log("Home component mounted, fetching data...");
             try {
-                // Fetch User Data
                 const user = getCurrentUser();
                 if (user) {
-                    console.log("User logged in, fetching favorites and watchlist");
                     const favs = await getFavorites();
                     const watch = await getWatchlist();
                     setFavorites(favs);
@@ -32,20 +29,16 @@ const Home = () => {
             }
 
             try {
-                console.log("Fetching coins from API...");
                 const response = await getCoins();
-                console.log("API response received:", response);
                 if (response && Array.isArray(response.data)) {
                     setCoins(response.data);
                 } else {
-                    console.error("Unexpected response format:", response);
                     setError("Unexpected response from server");
                 }
             } catch (err) {
                 console.error("Failed to fetch coins:", err);
                 setError("Failed to fetch top coins. Is the backend running?");
             } finally {
-                console.log("Setting loading to false");
                 setLoading(false);
             }
         };
@@ -79,7 +72,6 @@ const Home = () => {
             alert("Please log in to add coins to your watchlist.");
             return;
         }
-
         if (isWatchlist(coin.id)) {
             await removeFromWatchlist(coin.id);
         } else {
@@ -116,46 +108,51 @@ const Home = () => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-800">
-                        {Array.isArray(coins) && coins.map((coin) => (
-                            <tr key={coin.id} className="hover:bg-gray-800 transition-colors group">
-                                <td className="py-4 px-6 text-center">
-                                    <button
-                                        onClick={() => toggleWatchlist(coin)}
-                                        className={`text-2xl transition transform hover:scale-125 ${isWatchlist(coin.id) ? 'text-yellow-400' : 'text-gray-600'}`}
-                                    >
-                                        ★
-                                    </button>
-                                </td>
-                                <td className="py-4 px-6">
-                                    <div className="flex items-center gap-3">
-                                        <img src={coin.image} alt={coin.name} className="w-8 h-8 rounded-full" />
-                                        <div>
-                                            <span className="font-bold text-white block">{coin.name}</span>
-                                            <span className="text-xs text-gray-500 uppercase">{coin.symbol}</span>
+                        {Array.isArray(coins) && coins.map((coin) => {
+                            // ✅ Fix: safely handle null values
+                            const change = coin.price_change_percentage_24h ?? 0;
+                            const price = coin.current_price ?? 0;
+                            const marketCap = coin.market_cap ?? 0;
+
+                            return (
+                                <tr key={coin.id} className="hover:bg-gray-800 transition-colors group">
+                                    <td className="py-4 px-6 text-center">
+                                        <button
+                                            onClick={() => toggleWatchlist(coin)}
+                                            className={`text-2xl transition transform hover:scale-125 ${isWatchlist(coin.id) ? 'text-yellow-400' : 'text-gray-600'}`}
+                                        >
+                                            ★
+                                        </button>
+                                    </td>
+                                    <td className="py-4 px-6">
+                                        <div className="flex items-center gap-3">
+                                            <img src={coin.image} alt={coin.name} className="w-8 h-8 rounded-full" />
+                                            <div>
+                                                <span className="font-bold text-white block">{coin.name}</span>
+                                                <span className="text-xs text-gray-500 uppercase">{coin.symbol}</span>
+                                            </div>
                                         </div>
-                                    </div>
-                                </td>
-                                <td className="py-4 px-6 text-right text-white font-medium">
-                                    ${coin.current_price.toLocaleString()}
-                                </td>
-                                <td
-                                    className={`py-4 px-6 text-right font-bold ${coin.price_change_percentage_24h > 0 ? "text-green-500" : "text-red-500"}`}
-                                >
-                                    {coin.price_change_percentage_24h > 0 ? '+' : ''}{coin.price_change_percentage_24h.toFixed(2)}%
-                                </td>
-                                <td className="py-4 px-6 text-right text-gray-400">
-                                    ${coin.market_cap.toLocaleString()}
-                                </td>
-                                <td className="py-4 px-6 text-center">
-                                    <button
-                                        onClick={() => onAddClick(coin)}
-                                        className="bg-blue-600 cursor-pointer hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold transition shadow-lg shadow-blue-900/20"
-                                    >
-                                        Add to Dashboard
-                                    </button>
-                                </td>
-                            </tr>
-                        ))}
+                                    </td>
+                                    <td className="py-4 px-6 text-right text-white font-medium">
+                                        ${price.toLocaleString()}
+                                    </td>
+                                    <td className={`py-4 px-6 text-right font-bold ${change > 0 ? "text-green-500" : "text-red-500"}`}>
+                                        {change > 0 ? '+' : ''}{change.toFixed(2)}%
+                                    </td>
+                                    <td className="py-4 px-6 text-right text-gray-400">
+                                        ${marketCap.toLocaleString()}
+                                    </td>
+                                    <td className="py-4 px-6 text-center">
+                                        <button
+                                            onClick={() => onAddClick(coin)}
+                                            className="bg-blue-600 cursor-pointer hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold transition shadow-lg shadow-blue-900/20"
+                                        >
+                                            Add to Dashboard
+                                        </button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>

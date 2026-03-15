@@ -1,3 +1,3 @@
 git add .
-git commit -m "fix: null price_change_percentage_24h crash"
+git commit -m "fix: null crash on coin data from real API"
 git push
