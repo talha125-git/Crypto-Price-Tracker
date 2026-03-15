@@ -1,3 +1,3 @@
 git add .
-git commit -m "fix: null crash on coin data from real API"
+git commit -m "feat: add search filter to market overview"
 git push
